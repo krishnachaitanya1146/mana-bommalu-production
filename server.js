@@ -160,6 +160,5 @@ app.post('/api/orders/:id/status',requireAdmin,async(req,res)=>{try{const r=awai
 app.get('/health',(req,res)=>res.json({ok:true}));
 app.use(express.static(path.join(__dirname,'public')));
 app.get('/admin',(req,res)=>res.sendFile(path.join(__dirname,'public','admin.html')));
-app.get('*',(req,res)=>res.sendFile(path.join(__dirname,'public','customer.html')));
-
+app.use((req,res)=>res.sendFile(path.join(__dirname,'public','customer.html')));
 initDb().then(()=>app.listen(PORT,'0.0.0.0',()=>console.log(`MANA BOMMALU running on port ${PORT}`))).catch(err=>{console.error(err);process.exit(1)});
