@@ -1,0 +1,33 @@
+services:
+  - type: web
+    name: mana-bommalu-store
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: mana-bommalu-db
+          property: connectionString
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: WHATSAPP_TOKEN
+        sync: false
+      - key: WHATSAPP_PHONE_NUMBER_ID
+        sync: false
+      - key: WHATSAPP_API_VERSION
+        value: v23.0
+      - key: WHATSAPP_STATUS_TEMPLATE
+        value: order_status_update
+      - key: WHATSAPP_TEMPLATE_LANGUAGE
+        value: en_US
+      - key: NODE_ENV
+        value: production
+
+databases:
+  - name: mana-bommalu-db
+    plan: free

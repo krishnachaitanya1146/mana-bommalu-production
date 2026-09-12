@@ -1,0 +1,19 @@
+Meta WhatsApp template suggestion
+
+Template name: order_status_update
+Category: UTILITY
+Language: English (US)
+
+Body:
+Your MANA BOMMALU order {{1}} is now {{2}}.
+
+Thank you for shopping with MANA BOMMALU.
+
+Variables:
+{{1}} = Order ID
+{{2}} = Order status
+
+Important:
+- The customer should have opted in to WhatsApp notifications.
+- Use the exact approved template name and language in Render Environment Variables.
+- Never put the WhatsApp access token in frontend HTML/JavaScript.
