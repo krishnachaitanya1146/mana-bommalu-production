@@ -122,6 +122,10 @@
   .pd-gallery-main{background:var(--card);border:1px solid var(--line);border-radius:14px;aspect-ratio:1;display:flex;align-items:center;justify-content:center;padding:50px;margin-bottom:14px;color:var(--olive-600);}
   .pd-thumbs{display:flex;gap:10px;}
   .pd-thumbs .th{width:64px;height:64px;border-radius:8px;background:var(--bg-soft);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;padding:10px;color:var(--olive-500);}
+  .pd-thumbs .th{cursor:pointer;overflow:hidden;}
+  .pd-thumbs .th.active{border:2px solid var(--olive-600);}
+  .pd-thumbs .th img{width:100%;height:100%;object-fit:cover;border-radius:6px;}
+
   .pd-info .cat-label{font-size:13px;color:var(--accent-deep);font-weight:600;margin-bottom:8px;}
   .pd-info h2{font-size:30px;margin-bottom:10px;line-height:1.2;}
   .pd-info .rating-row{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--muted);margin-bottom:18px;}
@@ -426,6 +430,7 @@ const REVIEWS = [
 let cart = [];            // {id, qty}
 let currentPage = 'home';
 let currentProductId = 1;
+let selectedGalleryIndex = 0;
 let shopFilter = {cat:'all', search:'', sort:'featured'};
 let accountTab = 'profile';
 let checkoutStep = 1;
@@ -436,7 +441,25 @@ let STORE_INFO = {phone:''};
 /* ===================== HELPERS ===================== */
 function productById(id){ return PRODUCTS.find(p => p.id === Number(id)); }
 function openWhatsApp(){ const n=(STORE_INFO.phone||'').replace(/\D/g,''); if(!n){toast('WhatsApp number is not configured yet');return;} window.open('https://wa.me/'+n+'?text='+encodeURIComponent('Hello MANA BOMMALU 👋 I would like to know more about your toys.'),'_blank'); }
-function productVisual(p,size){ return p && p.imageUrl ? `<img src="${p.imageUrl}" alt="${p.name}" style="width:100%;height:100%;object-fit:contain;border-radius:8px;">` : icon(p.ic,size||68); }
+function productImages(p){
+  if(!p) return [];
+  if(Array.isArray(p.image_urls) && p.image_urls.length) return p.image_urls;
+  return p.imageUrl ? [p.imageUrl] : [];
+}
+function productVisual(p,size){
+  const imgs = productImages(p);
+  return imgs.length
+    ? `<img src="${imgs[0]}" alt="${p.name}" style="width:100%;height:100%;object-fit:contain;border-radius:8px;">`
+    : icon(p.ic,size||68);
+}
+function setGalleryImage(index){
+  selectedGalleryIndex = index;
+  const p = productById(currentProductId);
+  const imgs = productImages(p);
+  const main = document.getElementById('productMainImage');
+  if(main && imgs[index]) main.src = imgs[index];
+  document.querySelectorAll('.pd-thumbs .th').forEach((el,i)=>el.classList.toggle('active',i===index));
+}
 async function loadStoreData(){
   try{ const r=await fetch('/api/state'); if(!r.ok) throw new Error(); const d=await r.json(); if(d.products) PRODUCTS=d.products; if(d.categories) CATEGORIES=d.categories; if(d.coupons) COUPONS=d.coupons; if(d.orders) ORDERS=d.orders; if(d.storeInfo) STORE_INFO=d.storeInfo; }
   catch(e){ console.error('Store data load failed',e); }
@@ -643,9 +666,19 @@ function renderProduct(){
     <div class="crumb"><button onclick="go('shop')">Shop</button> / ${p.cat} / ${p.name}</div>
     <div class="pd-grid">
       <div>
-        <div class="pd-gallery-main">${p.imageUrl?`<img src="${p.imageUrl}" alt="${p.name}" style="max-width:100%;max-height:100%;object-fit:contain;border-radius:10px;">`:icon(p.ic,150)}</div>
+        <div class="pd-gallery-main">
+          ${productImages(p).length
+            ? `<img id="productMainImage" src="${productImages(p)[0]}" alt="${p.name}" style="max-width:100%;max-height:100%;object-fit:contain;border-radius:10px;">`
+            : icon(p.ic,150)}
+        </div>
         <div class="pd-thumbs">
-          ${[p.ic,'blocks','doll'].slice(0,3).map(i=>`<div class="th">${icon(i,30)}</div>`).join('')}
+          ${productImages(p).length
+            ? productImages(p).map((img,i)=>`
+                <div class="th ${i===0?'active':''}" onclick="setGalleryImage(${i})">
+                  <img src="${img}" alt="${p.name} image ${i+1}">
+                </div>
+              `).join('')
+            : `<div class="th active">${icon(p.ic,30)}</div>`}
         </div>
       </div>
       <div class="pd-info">

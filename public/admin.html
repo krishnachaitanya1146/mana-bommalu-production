@@ -301,6 +301,15 @@
   .modal-backdrop{position:fixed;inset:0;background:rgba(42,40,24,.45);display:none;align-items:center;justify-content:center;z-index:300;padding:20px;}
   .modal-box{background:var(--card);border-radius:14px;padding:28px;max-width:540px;width:100%;max-height:88vh;overflow-y:auto;}
   .modal-box h3{margin-bottom:18px;font-size:19px;}
+  .image-upload-box{border:1px dashed var(--olive-500);border-radius:10px;padding:14px;background:var(--bg-soft);}
+  .image-upload-box input[type=file]{width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);}
+  .image-preview{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:12px;}
+  .image-preview-item{position:relative;aspect-ratio:1;background:var(--card);border:1px solid var(--line);border-radius:8px;overflow:hidden;}
+  .image-preview-item img{width:100%;height:100%;object-fit:cover;}
+  .image-remove{position:absolute;top:5px;right:5px;width:25px;height:25px;border:0;border-radius:50%;background:var(--danger);color:white;font-weight:700;cursor:pointer;}
+  .image-count{font-size:12px;color:var(--muted);margin-top:8px;}
+  @media (max-width:600px){.image-preview{grid-template-columns:repeat(3,1fr);}}
+
   .bar-row{margin-bottom:12px;}
   .bar-row .lbl{display:flex;justify-content:space-between;font-size:13px;margin-bottom:5px;}
   .bar-track{background:var(--bg-soft);border-radius:6px;height:8px;overflow:hidden;}
@@ -572,6 +581,7 @@ let trackOrderId = 'ORD-10255';
 let appMode = 'store';
 let adminLoggedIn = false;
 let adminPage = 'dashboard';
+let selectedImages = [];
 
 /* ===================== HELPERS ===================== */
 function productById(id){ return PRODUCTS.find(p => p.id === Number(id)); }
@@ -1355,6 +1365,11 @@ function closeModal(){ document.getElementById('modalBackdrop').style.display = 
 function openProductModal(id){
   const p = id ? productById(id) : null;
   const isEdit = !!p;
+  selectedImages = p
+    ? (Array.isArray(p.image_urls) && p.image_urls.length
+        ? [...p.image_urls]
+        : (p.imageUrl ? [p.imageUrl] : []))
+    : [];
   document.getElementById('modalBox').innerHTML = `
     <h3>${isEdit?'Edit toy':'Add new toy'}</h3>
     <div class="form-grid full">
@@ -1369,7 +1384,17 @@ function openProductModal(id){
       <div class="field"><label>Age range</label><input id="pf_age" type="text" value="${p?p.age:''}" placeholder="e.g. 2-5 yrs"></div>
       <div class="field"><label>Stock quantity</label><input id="pf_stock" type="number" value="${p?p.stockQty:10}"></div>
       <div class="field"><label>Icon</label><select id="pf_icon">${ICON_OPTIONS.map(i=>`<option value="${i}" ${p&&p.ic===i?'selected':''}>${i}</option>`).join('')}</select></div>
-      <div class="field"><label>Image URL (optional)</label><input id="pf_image" type="url" value="${p&&p.imageUrl?p.imageUrl:''}" placeholder="https://..."></div>
+      <div class="field full" style="grid-column:1/-1;">
+        <label>Product Images</label>
+        <div class="image-upload-box">
+          <input id="pf_image_files" type="file" accept="image/*" multiple onchange="handleProductImages(event)">
+          <div id="imagePreview" class="image-preview"></div>
+          <div id="imageCount" class="image-count">0 images selected</div>
+          <small style="display:block;margin-top:8px;color:var(--muted);">
+            Choose multiple images. Maximum 8 images, 1.5 MB each.
+          </small>
+        </div>
+      </div>
        <div class="field"><label>Badge (optional)</label><input id="pf_badge" type="text" value="${p&&p.badge?p.badge:''}" placeholder="Bestseller, New…"></div>
     </div>
     <div class="field" style="margin-top:14px;"><label>Description</label><textarea id="pf_desc" rows="3">${p?p.desc:''}</textarea></div>
@@ -1379,6 +1404,7 @@ function openProductModal(id){
     </div>
   `;
   showModal();
+  renderImagePreview();
 }
 function saveProduct(id){
   const name = document.getElementById('pf_name').value.trim();
@@ -1390,22 +1416,97 @@ function saveProduct(id){
   const stockQty = Number(document.getElementById('pf_stock').value) || 0;
   const ic = document.getElementById('pf_icon').value;
   const badge = document.getElementById('pf_badge').value.trim() || null;
-  const imageUrl = document.getElementById('pf_image').value.trim() || null;
+  const imageUrl = selectedImages[0] || null;
+  const imageUrls = [...selectedImages];
   const desc = document.getElementById('pf_desc').value.trim();
   if(!name || !price){ toast('Name and price are required'); return; }
+  if(imageUrls.length > 8){ toast('Maximum 8 images allowed'); return; }
   if(id){
     const p = productById(id);
-    Object.assign(p, {name,cat,price,was,age,stockQty,ic,badge,desc,imageUrl});
+    Object.assign(p, {name,cat,price,was,age,stockQty,ic,badge,desc,imageUrl,image_urls:imageUrls});
     toast('Toy updated — changes are live on the store');
   } else {
     const newId = Math.max(0, ...PRODUCTS.map(p=>p.id)) + 1;
-    PRODUCTS.push({id:newId,name,cat,price,was,age,stockQty,rating:0,reviews:0,ic,badge,desc,imageUrl});
+    PRODUCTS.push({id:newId,name,cat,price,was,age,stockQty,rating:0,reviews:0,ic,badge,desc,imageUrl,image_urls:imageUrls});
     toast('New toy added — now live on the store');
   }
   closeModal();
   persist();
   renderAdmin();
 }
+
+function handleProductImages(event){
+  const files = Array.from(event.target.files || []);
+
+  if(files.length > 8){
+    toast('Choose a maximum of 8 images');
+    event.target.value = '';
+    return;
+  }
+
+  selectedImages = [];
+
+  let pending = files.length;
+  if(!pending){
+    renderImagePreview();
+    return;
+  }
+
+  files.forEach(file=>{
+    if(!file.type.startsWith('image/')){
+      pending--;
+      if(pending===0) renderImagePreview();
+      return;
+    }
+
+    if(file.size > 1.5 * 1024 * 1024){
+      toast(file.name + ' is larger than 1.5 MB');
+      pending--;
+      if(pending===0) renderImagePreview();
+      return;
+    }
+
+    const reader = new FileReader();
+
+    reader.onload = ()=>{
+      selectedImages.push(reader.result);
+      pending--;
+      if(pending===0) renderImagePreview();
+    };
+
+    reader.onerror = ()=>{
+      pending--;
+      if(pending===0) renderImagePreview();
+    };
+
+    reader.readAsDataURL(file);
+  });
+}
+
+function renderImagePreview(){
+  const box = document.getElementById('imagePreview');
+  const count = document.getElementById('imageCount');
+
+  if(!box) return;
+
+  box.innerHTML = selectedImages.map((src,index)=>`
+    <div class="image-preview-item">
+      <img src="${src}" alt="Product image ${index+1}">
+      <button type="button" class="image-remove" onclick="removeProductImage(${index})">×</button>
+    </div>
+  `).join('');
+
+  if(count){
+    count.textContent = selectedImages.length +
+      (selectedImages.length===1 ? ' image selected' : ' images selected');
+  }
+}
+
+function removeProductImage(index){
+  selectedImages.splice(index,1);
+  renderImagePreview();
+}
+
 function deleteProduct(id){
   const p = productById(id);
   if(!confirm('Delete "'+(p?p.name:'this toy')+'"? This cannot be undone.')) return;
